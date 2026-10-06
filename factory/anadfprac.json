@@ -1,0 +1,25 @@
+{
+	"name": "anadfprac",
+	"properties": {
+		"globalParameters": {
+			"sqlserver": {
+				"type": "string",
+				"value": "anpracsql"
+			},
+			"sqldatabase": {
+				"type": "string",
+				"value": "anpracsqldb"
+			}
+		},
+		"trustModeClaimForMi": {
+			"value": "Disabled",
+			"editable": true
+		}
+	},
+	"location": "eastus",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "66980e6b-43ea-4679-84c7-89658985c10d",
+		"tenantId": "5b6ecef1-a28e-4b66-8ae3-fb8d0f3406d9"
+	}
+}

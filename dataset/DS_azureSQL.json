@@ -1,0 +1,50 @@
+{
+	"name": "DS_azureSQL",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_Azure_SQL",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"database": {
+					"value": "@dataset().DS_database",
+					"type": "Expression"
+				}
+			}
+		},
+		"parameters": {
+			"DS_database": {
+				"type": "String"
+			}
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [
+			{
+				"name": "control_id",
+				"type": "varchar"
+			},
+			{
+				"name": "sql_table_name",
+				"type": "varchar"
+			},
+			{
+				"name": "target_adls_storage_account",
+				"type": "varchar"
+			},
+			{
+				"name": "target_adls_container",
+				"type": "varchar"
+			},
+			{
+				"name": "target_adls_directory",
+				"type": "varchar"
+			},
+			{
+				"name": "WatermarkValue",
+				"type": "datetime2",
+				"scale": 7
+			}
+		]
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}
