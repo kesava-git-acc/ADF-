@@ -1,0 +1,10 @@
+{
+	"sqlserver": {
+		"type": "string",
+		"value": "anpracsql"
+	},
+	"sqldatabase": {
+		"type": "string",
+		"value": "anpracsqldb"
+	}
+}

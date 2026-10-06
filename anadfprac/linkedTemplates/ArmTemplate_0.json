@@ -1,0 +1,733 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"type": "string",
+			"metadata": "Data Factory name",
+			"defaultValue": "anadfprac"
+		},
+		"LS_ADLS_accountKey": {
+			"type": "secureString",
+			"metadata": "Secure string for 'accountKey' of 'LS_ADLS'"
+		},
+		"LS_ADLS_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://anstorage12.dfs.core.windows.net/"
+		},
+		"LS_Key_Vault_properties_typeProperties_baseUrl": {
+			"type": "string",
+			"defaultValue": "https://anprackeyvault.vault.azure.net/"
+		},
+		"LS_Azure_SQL_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "anpracsql.database.windows.net"
+		},
+		"LS_Azure_SQL_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "@{linkedService().database}"
+		},
+		"LS_Azure_SQL_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "anpracsql"
+		}
+	},
+	"variables": {
+		"factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('factoryName'), '/LS_ADLS')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('LS_ADLS_properties_typeProperties_url')]",
+					"accountKey": {
+						"type": "SecureString",
+						"value": "[parameters('LS_ADLS_accountKey')]"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/LS_Key_Vault')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureKeyVault",
+				"typeProperties": {
+					"baseUrl": "[parameters('LS_Key_Vault_properties_typeProperties_baseUrl')]"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_ADLS_csv')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"location": {
+						"type": "string"
+					},
+					"container": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": {
+							"value": "@formatDateTime(utcNow(),'yyyy-MM-dd')",
+							"type": "Expression"
+						},
+						"folderPath": {
+							"value": "@dataset().location",
+							"type": "Expression"
+						},
+						"fileSystem": {
+							"value": "@dataset().container",
+							"type": "Expression"
+						}
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/LS_Azure_SQL')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"parameters": {
+					"database": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlDatabase",
+				"typeProperties": {
+					"server": "[parameters('LS_Azure_SQL_properties_typeProperties_server')]",
+					"database": "[parameters('LS_Azure_SQL_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": false,
+					"authenticationType": "SQL",
+					"userName": "[parameters('LS_Azure_SQL_properties_typeProperties_userName')]",
+					"password": {
+						"type": "AzureKeyVaultSecret",
+						"store": {
+							"referenceName": "LS_Key_Vault",
+							"type": "LinkedServiceReference"
+						},
+						"secretName": "anpracsql"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_Key_Vault')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_azureSQL')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_Azure_SQL",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"database": {
+							"value": "@dataset().DS_database",
+							"type": "Expression"
+						}
+					}
+				},
+				"parameters": {
+					"DS_database": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "control_id",
+						"type": "varchar"
+					},
+					{
+						"name": "sql_table_name",
+						"type": "varchar"
+					},
+					{
+						"name": "target_adls_storage_account",
+						"type": "varchar"
+					},
+					{
+						"name": "target_adls_container",
+						"type": "varchar"
+					},
+					{
+						"name": "target_adls_directory",
+						"type": "varchar"
+					},
+					{
+						"name": "WatermarkValue",
+						"type": "datetime2",
+						"scale": 7
+					}
+				],
+				"typeProperties": {}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_Azure_SQL')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_AzureSQLCopy')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "Get Config",
+						"type": "Lookup",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.00:10:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": "select * from sql_ingestion_config",
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
+							},
+							"dataset": {
+								"referenceName": "DS_azureSQL",
+								"type": "DatasetReference",
+								"parameters": {
+									"DS_database": {
+										"value": "@pipeline().globalParameters.sqldatabase",
+										"type": "Expression"
+									}
+								}
+							},
+							"firstRowOnly": false
+						}
+					},
+					{
+						"name": "Iterate through Configs",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "Get Config",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@activity('Get Config').output.value",
+								"type": "Expression"
+							},
+							"isSequential": true,
+							"activities": [
+								{
+									"name": "Get Max timestamp",
+									"type": "Script",
+									"dependsOn": [
+										{
+											"activity": "Insert audit entry",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.0:10:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"linkedServiceName": {
+										"referenceName": "LS_Azure_SQL",
+										"type": "LinkedServiceReference",
+										"parameters": {
+											"database": {
+												"value": "@item().sql_server_database_name",
+												"type": "Expression"
+											}
+										}
+									},
+									"typeProperties": {
+										"scripts": [
+											{
+												"type": "Query",
+												"text": {
+													"value": "@concat('select max(ModifiedDate) as max_ts from ',item().sql_table_name )",
+													"type": "Expression"
+												}
+											}
+										],
+										"scriptBlockExecutionTimeout": "02:00:00"
+									}
+								},
+								{
+									"name": "Check for new rows",
+									"type": "IfCondition",
+									"dependsOn": [
+										{
+											"activity": "Get Max timestamp",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"userProperties": [],
+									"typeProperties": {
+										"expression": {
+											"value": "@greater(activity('Get Max timestamp').output.resultSets[0].rows[0].max_ts,\nitem().WatermarkValue\n)",
+											"type": "Expression"
+										},
+										"ifFalseActivities": [
+											{
+												"name": "Update Audit Entry EMPTY RUN",
+												"type": "SqlServerStoredProcedure",
+												"dependsOn": [],
+												"policy": {
+													"timeout": "0.0:10:00",
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"storedProcedureName": "[[dbo].[Update_audit_entry]",
+													"storedProcedureParameters": {
+														"AuditID": {
+															"value": {
+																"value": "@activity('Insert audit entry').output.firstRow.AuditID",
+																"type": "Expression"
+															},
+															"type": "Int64"
+														},
+														"ErrorMessage": {
+															"value": "No new rows",
+															"type": "String"
+														},
+														"PipelineStatus": {
+															"value": "Success",
+															"type": "String"
+														},
+														"RowsCopied": {
+															"value": "0",
+															"type": "Int64"
+														},
+														"RowsInserted": {
+															"value": "0",
+															"type": "Int64"
+														},
+														"RunEndTime": {
+															"value": {
+																"value": "@formatDateTime(utcNow())",
+																"type": "Expression"
+															},
+															"type": "DateTime"
+														},
+														"WatermarkEndValue": {
+															"value": {
+																"value": "@activity('Get Max timestamp').output.resultSets[0].rows[0].max_ts",
+																"type": "Expression"
+															},
+															"type": "DateTime"
+														}
+													}
+												},
+												"linkedServiceName": {
+													"referenceName": "LS_Azure_SQL",
+													"type": "LinkedServiceReference",
+													"parameters": {
+														"database": {
+															"value": "@item().sql_server_database_name",
+															"type": "Expression"
+														}
+													}
+												}
+											}
+										],
+										"ifTrueActivities": [
+											{
+												"name": "Incremental Copy",
+												"type": "Copy",
+												"dependsOn": [],
+												"policy": {
+													"timeout": "0.0:30:00",
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"source": {
+														"type": "AzureSqlSource",
+														"sqlReaderQuery": {
+															"value": "@concat(\n    'select * from ',\n    item().sql_table_name,\n    ' where ModifiedDate > ''',\n    formatDateTime(\n        item().WatermarkValue,\n        'yyyy-MM-dd HH:mm:ss.fffffff'\n    ),\n    ''''\n)",
+															"type": "Expression"
+														},
+														"queryTimeout": "02:00:00",
+														"partitionOption": "None"
+													},
+													"sink": {
+														"type": "DelimitedTextSink",
+														"storeSettings": {
+															"type": "AzureBlobFSWriteSettings"
+														},
+														"formatSettings": {
+															"type": "DelimitedTextWriteSettings",
+															"quoteAllText": true,
+															"fileExtension": ".txt"
+														}
+													},
+													"enableStaging": false,
+													"translator": {
+														"type": "TabularTranslator",
+														"typeConversion": true,
+														"typeConversionSettings": {
+															"allowDataTruncation": true,
+															"treatBooleanAsNumber": false
+														}
+													}
+												},
+												"inputs": [
+													{
+														"referenceName": "DS_azureSQL",
+														"type": "DatasetReference",
+														"parameters": {
+															"DS_database": {
+																"value": "@item().sql_server_database_name",
+																"type": "Expression"
+															}
+														}
+													}
+												],
+												"outputs": [
+													{
+														"referenceName": "DS_ADLS_csv",
+														"type": "DatasetReference",
+														"parameters": {
+															"location": {
+																"value": "@item().target_adls_directory",
+																"type": "Expression"
+															},
+															"container": {
+																"value": "@item().target_adls_container",
+																"type": "Expression"
+															}
+														}
+													}
+												]
+											},
+											{
+												"name": "Update Audit Entry",
+												"type": "SqlServerStoredProcedure",
+												"dependsOn": [
+													{
+														"activity": "Incremental Copy",
+														"dependencyConditions": [
+															"Succeeded"
+														]
+													}
+												],
+												"policy": {
+													"timeout": "0.0:10:00",
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"storedProcedureName": "[[dbo].[Update_audit_entry]",
+													"storedProcedureParameters": {
+														"AuditID": {
+															"value": {
+																"value": "@activity('Insert audit entry').output.firstRow.AuditID",
+																"type": "Expression"
+															},
+															"type": "Int64"
+														},
+														"ErrorMessage": {
+															"value": null,
+															"type": "String"
+														},
+														"PipelineStatus": {
+															"value": "Success",
+															"type": "String"
+														},
+														"RowsCopied": {
+															"value": {
+																"value": "@activity('Incremental Copy').output.rowsRead",
+																"type": "Expression"
+															},
+															"type": "Int64"
+														},
+														"RowsInserted": {
+															"value": {
+																"value": "@activity('Incremental Copy').output.rowsCopied",
+																"type": "Expression"
+															},
+															"type": "Int64"
+														},
+														"RunEndTime": {
+															"value": {
+																"value": "@formatDateTime(utcNow())",
+																"type": "Expression"
+															},
+															"type": "DateTime"
+														},
+														"WatermarkEndValue": {
+															"value": {
+																"value": "@activity('Get Max timestamp').output.resultSets[0].rows[0].max_ts",
+																"type": "Expression"
+															},
+															"type": "DateTime"
+														}
+													}
+												},
+												"linkedServiceName": {
+													"referenceName": "LS_Azure_SQL",
+													"type": "LinkedServiceReference",
+													"parameters": {
+														"database": {
+															"value": "@item().sql_server_database_name",
+															"type": "Expression"
+														}
+													}
+												}
+											},
+											{
+												"name": "Update Config table",
+												"type": "Script",
+												"dependsOn": [
+													{
+														"activity": "Update Audit Entry",
+														"dependencyConditions": [
+															"Succeeded"
+														]
+													}
+												],
+												"policy": {
+													"timeout": "0.0:10:00",
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"linkedServiceName": {
+													"referenceName": "LS_Azure_SQL",
+													"type": "LinkedServiceReference",
+													"parameters": {
+														"database": {
+															"value": "@item().sql_server_database_name",
+															"type": "Expression"
+														}
+													}
+												},
+												"typeProperties": {
+													"scripts": [
+														{
+															"type": "Query",
+															"text": {
+																"value": "@concat(\n    'update sql_ingestion_config set WatermarkValue = ''',\n    formatDateTime(activity('Get Max timestamp').output.resultSets[0].rows[0].max_ts,'yyyy-MM-dd HH:mm:ss.fffffff'),\n    ''' where control_id = ''',\n    item().control_id, ''''\n\n)",
+																"type": "Expression"
+															}
+														}
+													],
+													"scriptBlockExecutionTimeout": "02:00:00"
+												}
+											},
+											{
+												"name": "Failure Update Audit",
+												"type": "SqlServerStoredProcedure",
+												"dependsOn": [
+													{
+														"activity": "Incremental Copy",
+														"dependencyConditions": [
+															"Failed"
+														]
+													}
+												],
+												"policy": {
+													"timeout": "0.0:10:00",
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"storedProcedureName": "[[dbo].[Update_audit_entry]",
+													"storedProcedureParameters": {
+														"AuditID": {
+															"value": {
+																"value": "@activity('Insert audit entry').output.firstRow.AuditID",
+																"type": "Expression"
+															},
+															"type": "Int64"
+														},
+														"ErrorMessage": {
+															"value": {
+																"value": "@activity('Incremental Copy').error.message",
+																"type": "Expression"
+															},
+															"type": "String"
+														},
+														"PipelineStatus": {
+															"value": "Failure",
+															"type": "String"
+														},
+														"RowsCopied": {
+															"value": null,
+															"type": "Int64"
+														},
+														"RowsInserted": {
+															"value": null,
+															"type": "Int64"
+														},
+														"RunEndTime": {
+															"value": {
+																"value": "@formatDateTime(utcNow())",
+																"type": "Expression"
+															},
+															"type": "DateTime"
+														},
+														"WatermarkEndValue": {
+															"value": null,
+															"type": "DateTime"
+														}
+													}
+												},
+												"linkedServiceName": {
+													"referenceName": "LS_Azure_SQL",
+													"type": "LinkedServiceReference",
+													"parameters": {
+														"database": {
+															"value": "@item().sql_server_database_name",
+															"type": "Expression"
+														}
+													}
+												}
+											}
+										]
+									}
+								},
+								{
+									"name": "Insert audit entry",
+									"type": "Lookup",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "0.0:10:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "AzureSqlSource",
+											"sqlReaderStoredProcedureName": "[[dbo].[SQL_Ingestion_Insert_Audit_Entry]",
+											"storedProcedureParameters": {
+												"PipelineName": {
+													"type": "String",
+													"value": {
+														"value": "@pipeline().Pipeline",
+														"type": "Expression"
+													}
+												},
+												"PipelineRunID": {
+													"type": "String",
+													"value": {
+														"value": "@pipeline().RunId",
+														"type": "Expression"
+													}
+												},
+												"TriggerName": {
+													"type": "String",
+													"value": "Trg_Daily"
+												},
+												"TriggerType": {
+													"type": "String",
+													"value": "Manual"
+												},
+												"WatermarkStartValue": {
+													"type": "DateTime",
+													"value": {
+														"value": "@item().WatermarkValue",
+														"type": "Expression"
+													}
+												}
+											},
+											"queryTimeout": "02:00:00",
+											"partitionOption": "None"
+										},
+										"dataset": {
+											"referenceName": "DS_azureSQL",
+											"type": "DatasetReference",
+											"parameters": {
+												"DS_database": {
+													"value": "@item().sql_server_database_name",
+													"type": "Expression"
+												}
+											}
+										}
+									}
+								}
+							]
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-10-06T08:19:13Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_azureSQL')]",
+				"[concat(variables('factoryId'), '/linkedServices/LS_Azure_SQL')]",
+				"[concat(variables('factoryId'), '/datasets/DS_ADLS_csv')]"
+			]
+		}
+	]
+}
